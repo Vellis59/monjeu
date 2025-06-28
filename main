@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starship Odyssey - Bridge Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #0c0a1e;
+            color: #00ffdd;
+            height: 100vh;
+            overflow: hidden; /* Prevent body from scrolling */
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .terminal-box {
+            background-color: rgba(12, 10, 30, 0.8);
+            border: 1px solid #00ffdd;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 255, 221, 0.2);
+            backdrop-filter: blur(5px);
+        }
+        .station-button {
+            transition: all 0.3s ease;
+            flex-grow: 1;
+        }
+        .station-button:hover, .station-button.active {
+            background-color: #00ffdd;
+            color: #0c0a1e;
+            box-shadow: 0 0 20px #00ffdd;
+        }
+        #log-container::-webkit-scrollbar, #station-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        #log-container::-webkit-scrollbar-track, #station-content::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+        }
+        #log-container::-webkit-scrollbar-thumb, #station-content::-webkit-scrollbar-thumb {
+            background-color: #00ffdd;
+            border-radius: 4px;
+        }
+        .glowing-text {
+            text-shadow: 0 0 5px #00ffdd, 0 0 10px #00ffdd, 0 0 15px #00ffdd;
+        }
+        .input-field {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #00ffdd;
+            color: #00ffdd;
+            outline: none;
+        }
+        .action-button {
+            border: 1px solid #00ffdd;
+            color: #00ffdd;
+        }
+        .action-button:hover, .dynamic-action-button:hover {
+             background-color: #00ffdd;
+            color: #0c0a1e;
+        }
+        .dynamic-action-button {
+            border: 1px solid #00ffdd;
+            color: #00ffdd;
+            background-color: #0c0a1e;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .loader {
+            border: 4px solid #0c0a1e;
+            border-left-color: #00ffdd;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .progress-bar-container {
+            background-color: #002e29;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #005a52;
+        }
+        .progress-bar {
+            height: 100%;
+            transition: width 0.5s ease-in-out;
+            background: linear-gradient(90deg, #00ffdd, #00aaff);
+        }
+        #starmap-canvas {
+            background: #000;
+            cursor: crosshair;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+
+        <!-- Left Column: Ship Status, Starmap, Log -->
+        <div class="lg:col-span-1 flex flex-col gap-6 min-h-0">
+            <div class="terminal-box p-4">
+                <h2 class="font-orbitron text-xl mb-4 glowing-text">U.S.S. ODYSSEY</h2>
+                <div id="ship-status" class="space-y-3">
+                    <p><strong>Status:</strong> <span id="ship-condition" class="text-green-400">All Systems Nominal</span></p>
+                    <p><strong>Location:</strong> <span id="ship-location">Starbase 9</span></p>
+                    <p><strong>Objective:</strong> <span id="ship-objective">Awaiting Orders</span></p>
+                     <div class="pt-2">
+                        <label class="text-sm">Shields:</label>
+                        <div class="progress-bar-container h-4 mt-1"><div id="shields-bar" class="progress-bar" style="width: 100%;"></div></div>
+                    </div>
+                    <div>
+                        <label class="text-sm">Hull:</label>
+                        <div class="progress-bar-container h-4 mt-1"><div id="hull-bar" class="progress-bar" style="width: 100%;"></div></div>
+                    </div>
+                    <div>
+                        <label class="text-sm">Power:</label>
+                        <div class="progress-bar-container h-4 mt-1"><div id="power-bar" class="progress-bar" style="width: 100%;"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terminal-box p-4">
+                <h2 class="font-orbitron text-xl mb-4 glowing-text">Local Starmap</h2>
+                <canvas id="starmap-canvas" width="400" height="300"></canvas>
+            </div>
+
+            <div class="terminal-box p-4 flex-grow flex flex-col min-h-0">
+                <h2 class="font-orbitron text-xl mb-4 glowing-text">Captain's Log</h2>
+                <div id="log-container" class="flex-grow overflow-y-auto pr-2"></div>
+            </div>
+        </div>
+
+        <!-- Right Column: Stations -->
+        <div class="lg:col-span-2 terminal-box p-6 flex flex-col h-full">
+            <h1 id="main-display-title" class="font-orbitron text-3xl mb-4 text-center glowing-text">Main Viewscreen</h1>
+            
+            <div class="flex flex-wrap justify-center gap-2 md:gap-4 mb-6">
+                <button id="btn-helm" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Helm</button>
+                <button id="btn-comms" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Comms</button>
+                <button id="btn-science" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Science</button>
+                <button id="btn-tactical" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Tactical</button>
+                <button id="btn-engineering" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Engineering</button>
+                <button id="btn-ops" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">Operations</button>
+                <button id="btn-advisor" class="station-button font-orbitron py-2 px-3 rounded-lg border border-[#00ffdd]">✨ Advisor</button>
+            </div>
+
+            <div id="station-interface" class="flex-grow p-4 bg-black bg-opacity-20 rounded-md flex flex-col min-h-0">
+                 <div id="loader" class="hidden justify-center items-center h-full">
+                    <div class="loader"></div>
+                </div>
+                <div id="station-content" class="flex-grow overflow-y-auto"></div>
+            </div>
+             <div class="mt-4 flex space-x-4">
+                <input type="text" id="user-input" class="input-field w-full flex-grow" placeholder="Enter command...">
+                <button id="send-command" class="action-button font-orbitron py-2 px-6 rounded-lg">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SHIP STATE & DOM ELEMENTS ---
+        const shipStatus = {
+            status: "All Systems Nominal",
+            location: "Starbase 9, orbiting Kepler-186f",
+            objective: "Patrol the Kepler sector",
+            log: [],
+            narrativeState: "You are the Captain of the U.S.S. Odyssey. Your mission is to explore strange new worlds. You've just departed Starbase 9, ready for your patrol.",
+            shields: 100, hull: 100, power: 100, crewMorale: "Excellent",
+            mapObjects: [
+                { name: "Anomaly", x: 0.6, y: -0.5, size: 6, color: '#ff55ff' }
+            ]
+        };
+
+        const dom = {
+            logContainer: document.getElementById('log-container'),
+            shipLocation: document.getElementById('ship-location'),
+            shipObjective: document.getElementById('ship-objective'),
+            shipCondition: document.getElementById('ship-condition'),
+            shieldsBar: document.getElementById('shields-bar'),
+            hullBar: document.getElementById('hull-bar'),
+            powerBar: document.getElementById('power-bar'),
+            mainDisplayTitle: document.getElementById('main-display-title'),
+            stationContent: document.getElementById('station-content'),
+            userInput: document.getElementById('user-input'),
+            sendCommandBtn: document.getElementById('send-command'),
+            loader: document.getElementById('loader'),
+            starmapCanvas: document.getElementById('starmap-canvas')
+        };
+        
+        let currentStation = 'helm';
+
+        // --- STARMAP ---
+        const starmap = {
+            ctx: null,
+            stars: [],
+            init() {
+                this.ctx = dom.starmapCanvas.getContext('2d');
+                dom.starmapCanvas.addEventListener('click', this.handleClick.bind(this));
+                window.addEventListener('resize', this.resizeCanvas.bind(this));
+                this.resizeCanvas();
+            },
+            resizeCanvas() {
+                const container = dom.starmapCanvas.parentElement;
+                if (!container) return;
+                dom.starmapCanvas.width = container.clientWidth;
+                dom.starmapCanvas.height = container.clientWidth * 0.75;
+                this.stars = [];
+                for (let i = 0; i < 200; i++) {
+                    this.stars.push({ x: Math.random() * dom.starmapCanvas.width, y: Math.random() * dom.starmapCanvas.height, radius: Math.random() * 1.5, alpha: Math.random() });
+                }
+                this.draw();
+            },
+            draw() {
+                if (!this.ctx) return;
+                const { width, height } = dom.starmapCanvas;
+                this.ctx.clearRect(0, 0, width, height);
+                this.stars.forEach(star => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                    this.ctx.fill();
+                });
+                const shipX = width / 2, shipY = height / 2;
+                this.ctx.fillStyle = '#00ffdd';
+                this.ctx.beginPath();
+                this.ctx.moveTo(shipX, shipY - 8); this.ctx.lineTo(shipX + 5, shipY + 5); this.ctx.lineTo(shipX - 5, shipY + 5);
+                this.ctx.closePath(); this.ctx.fill(); this.ctx.strokeStyle = '#fff'; this.ctx.stroke();
+                shipStatus.mapObjects.forEach(obj => {
+                    const x = shipX + obj.x * (width / 2.2), y = shipY + obj.y * (height / 2.2);
+                    this.ctx.beginPath(); this.ctx.arc(x, y, obj.size || 5, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = obj.color || '#ffcc00'; this.ctx.lineWidth = 2; this.ctx.stroke();
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; this.ctx.font = '10px Roboto Mono'; this.ctx.textAlign = 'center';
+                    this.ctx.fillText(obj.name, x, y + (obj.size || 5) + 12);
+                });
+            },
+            handleClick(event) {
+                const rect = dom.starmapCanvas.getBoundingClientRect();
+                const clickX = event.clientX - rect.left, clickY = event.clientY - rect.top;
+                const shipX = dom.starmapCanvas.width / 2, shipY = dom.starmapCanvas.height / 2;
+                let clickedObject = null;
+                shipStatus.mapObjects.forEach(obj => {
+                    const x = shipX + obj.x * (dom.starmapCanvas.width / 2.2), y = shipY + obj.y * (dom.starmapCanvas.height / 2.2);
+                    const distance = Math.sqrt(Math.pow(clickX - x, 2) + Math.pow(clickY - y, 2));
+                    if (distance < (obj.size || 5) + 5) { clickedObject = obj; }
+                });
+                if (clickedObject) { switchStation('science'); handleCommand(`Scan the ${clickedObject.name}`); }
+            },
+            updateObjects(newObjects) { shipStatus.mapObjects = newObjects || []; this.draw(); }
+        };
+
+        // --- CORE AI & GAME LOGIC ---
+        function getBasePrompt() { return `You are an AI officer on the starship Odyssey. Current State: ${shipStatus.narrativeState}. Ship Systems: Shields ${shipStatus.shields}%, Hull ${shipStatus.hull}%, Power ${shipStatus.power}%. Crew Morale: ${shipStatus.crewMorale}. Location: ${shipStatus.location}. Objective: ${shipStatus.objective}. Be concise. Use bullet points for lists.`; }
+        function updateLog(entry, source = "Log") {
+            const timestamp = new Date().toLocaleTimeString();
+            shipStatus.log.push(entry);
+            const logEntry = document.createElement('p');
+            logEntry.innerHTML = `<strong>[${source} - ${timestamp}]</strong>: ${entry}`;
+            dom.logContainer.appendChild(logEntry);
+            dom.logContainer.scrollTop = dom.logContainer.scrollHeight;
+        }
+
+        function updateShipInfo() {
+            dom.shipLocation.textContent = shipStatus.location;
+            dom.shipObjective.textContent = shipStatus.objective;
+            dom.shipCondition.textContent = shipStatus.status;
+            dom.shieldsBar.style.width = `${shipStatus.shields}%`;
+            dom.hullBar.style.width = `${shipStatus.hull}%`;
+            dom.powerBar.style.width = `${shipStatus.power}%`;
+            if(shipStatus.hull < 30) dom.shipCondition.className = 'text-red-500 font-bold';
+            else if (shipStatus.hull < 70) dom.shipCondition.className = 'text-yellow-400';
+            else dom.shipCondition.className = 'text-green-400';
+            starmap.draw();
+        }
+        
+        function showLoader() { dom.stationContent.innerHTML = ''; dom.loader.style.display = 'flex'; }
+        function hideLoader() { dom.loader.style.display = 'none'; }
+
+        async function getAIResponse(prompt, schema = null) {
+            const isLoaderVisible = dom.loader.style.display === 'flex';
+            if (!isLoaderVisible) showLoader();
+            try {
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                if (schema) { payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema }; }
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+                const result = await response.json();
+                if (result.candidates?.[0]?.content?.parts?.[0]) {
+                    if (isLoaderVisible) hideLoader();
+                    return result.candidates[0].content.parts[0].text;
+                } else throw new Error("Invalid API response structure");
+            } catch (error) {
+                console.error("AI Error:", error);
+                if (isLoaderVisible) hideLoader();
+                updateLog(`AI core error: ${error.message}`, "System");
+                return `[SYSTEM_ERROR] Connection to AI core failed: ${error.message}`;
+            }
+        }
+
+        function applyAIEvent(event) {
+            if (!event) return;
+            if (event.newLocation) shipStatus.location = event.newLocation;
+            if (event.newObjective) shipStatus.objective = event.newObjective;
+            if (event.statusChange) shipStatus.status = event.statusChange;
+            if (event.hullDamage) shipStatus.hull = Math.max(0, shipStatus.hull - event.hullDamage);
+            if (event.shieldDamage) shipStatus.shields = Math.max(0, shipStatus.shields - event.shieldDamage);
+            if (event.powerDrain) shipStatus.power = Math.max(0, shipStatus.power - event.powerDrain);
+            if (event.mapObjects) starmap.updateObjects(event.mapObjects);
+            if (event.logEntry) updateLog(event.logEntry, event.logSource || "System");
+            updateShipInfo();
+        }
+
+        const eventSchema = { type: "OBJECT", properties: { narrativeResponse: { type: "STRING" }, event: { type: "OBJECT", properties: { newLocation: { type: "STRING" }, newObjective: { type: "STRING" }, statusChange: { type: "STRING" }, hullDamage: { type: "NUMBER" }, shieldDamage: { type: "NUMBER" }, powerDrain: { type: "NUMBER" }, logEntry: { type: "STRING" }, logSource: { type: "STRING" }, mapObjects: { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, x: { type: "NUMBER" }, y: { type: "NUMBER" }, size: { type: "NUMBER" }, color: { type: "STRING" } } } } } } } };
+
+        async function stationAction(stationName, command, promptGenerator) {
+            dom.mainDisplayTitle.textContent = `${stationName.charAt(0).toUpperCase() + stationName.slice(1)} Control`;
+            const prompt = promptGenerator(command);
+            const rawResponse = await getAIResponse(prompt, eventSchema);
+
+            if (rawResponse.startsWith('[SYSTEM_ERROR]')) {
+                dom.stationContent.innerHTML = `<p class="text-red-500 font-bold whitespace-pre-wrap">${rawResponse}</p>`;
+                return;
+            }
+
+            try {
+                const response = JSON.parse(rawResponse);
+                dom.stationContent.innerHTML = `<p class="whitespace-pre-wrap">${response.narrativeResponse}</p>`;
+                updateLog(response.narrativeResponse, stationName);
+                shipStatus.narrativeState = response.narrativeResponse;
+                applyAIEvent(response.event);
+
+                // Add dynamic buttons based on station and context
+                if (stationName === 'Science' && response.narrativeResponse.toLowerCase().includes('anomaly')) {
+                    addDynamicButton('✨ Perform Deep Analysis', async (btn) => {
+                        btn.disabled = true; btn.textContent = 'Analyzing...';
+                        const deepAnalysisPrompt = `Elaborate on this scientific finding with creative, speculative details. Invent plausible-sounding scientific theories and vivid descriptions. Report: "${response.narrativeResponse}"`;
+                        const deepResponse = await getAIResponse(deepAnalysisPrompt);
+                        const analysisElement = document.createElement('div');
+                        analysisElement.className = 'mt-4 pt-4 border-t border-teal-500/50';
+                        analysisElement.innerHTML = `<h3 class="font-orbitron text-lg text-teal-300">Deep Analysis Results:</h3><p class="whitespace-pre-wrap">${deepResponse}</p>`;
+                        btn.after(analysisElement);
+                        btn.remove();
+                    });
+                }
+                if (stationName === 'Operations') {
+                    addDynamicButton('✨ Generate Full Briefing', async (btn) => {
+                        btn.disabled = true; btn.textContent = 'Generating...';
+                        const briefingPrompt = `Expand this mission objective into a full, engaging mission briefing for a starship captain. Make it sound official and compelling. Objective: "${shipStatus.objective}"`;
+                        const briefingResponse = await getAIResponse(briefingPrompt);
+                        const briefingElement = document.createElement('div');
+                        briefingElement.className = 'mt-4 pt-4 border-t border-teal-500/50';
+                        briefingElement.innerHTML = `<h3 class="font-orbitron text-lg text-teal-300">Mission Briefing:</h3><p class="whitespace-pre-wrap">${briefingResponse}</p>`;
+                        btn.after(briefingElement);
+                        btn.remove();
+                    });
+                }
+
+            } catch (e) {
+                console.error("Parse Error:", e, "Raw response:", rawResponse);
+                dom.stationContent.innerHTML = `<p class="text-yellow-400 whitespace-pre-wrap">Received corrupted data from ${stationName}. Displaying raw text:\n\n${rawResponse}</p>`;
+                updateLog(`Corrupted data from ${stationName}.`, "System");
+            }
+        }
+        
+        function addDynamicButton(text, clickHandler) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.className = 'dynamic-action-button font-orbitron';
+            button.addEventListener('click', () => clickHandler(button));
+            dom.stationContent.appendChild(button);
+        }
+
+        const stations = {
+            helm: (cmd) => stationAction('Helm', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Report & course options.'}" Provide a brief visual description and 2-3 navigation choices in a bulleted list.`),
+            comms: (cmd) => stationAction('Comms', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Any signals?'}" Generate a brief, one-sentence transmission. If it's a new objective, add it to the event.`),
+            science: (cmd) => stationAction('Science', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Sensor sweep.'}" Provide a concise report. Summarize the key finding in one sentence and use bullet points for details.`),
+            tactical: (cmd) => stationAction('Tactical', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Tactical overview.'}" Briefly report threats and weapon status. Present 2-3 tactical options in a bulleted list.`),
+            engineering: (cmd) => stationAction('Engineering', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Damage report.'}" Report critical systems using percentages. List repairs/suggestions in a bulleted list. Keep descriptions short.`),
+            ops: (cmd) => stationAction('Operations', cmd, (c) => `${getBasePrompt()} Captain: "${c || 'Ops report.'}" Give a brief, two-sentence update on mission status and crew morale.`),
+            advisor: (cmd) => stationAction('Advisor', cmd, (c) => `You are a wise, experienced strategic advisor AI. The Captain asks: "${c || 'Give me your assessment.'}" Analyze the full situation based on the base prompt. Provide a thoughtful analysis and suggest 2-3 creative, distinct courses of action with pros and cons. Frame this as advice, not orders. ${getBasePrompt()}`),
+        };
+        
+        function switchStation(stationId) {
+            currentStation = stationId;
+            document.querySelectorAll('.station-button').forEach(btn => {
+                btn.classList.toggle('active', btn.id === `btn-${stationId}`);
+            });
+        }
+        
+        document.querySelectorAll('.station-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const stationId = e.target.id.split('-')[1];
+                switchStation(stationId);
+                handleCommand(`Report.`);
+            });
+        });
+
+        async function handleCommand(text) {
+            if (!text) return;
+            updateLog(text, "Captain");
+            dom.userInput.value = '';
+            if (stations[currentStation]) {
+                await stations[currentStation](text);
+            }
+            updateShipInfo();
+        }
+
+        dom.sendCommandBtn.addEventListener('click', () => handleCommand(dom.userInput.value));
+        dom.userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleCommand(dom.userInput.value);
+        });
+
+        window.onload = () => {
+            updateLog("Captain on the bridge.", "System");
+            starmap.init();
+            updateShipInfo();
+            switchStation('helm');
+            stations.helm();
+        };
+    </script>
+</body>
+</html>
